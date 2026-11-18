@@ -407,6 +407,7 @@ class GraphStorage:
             "files": int(files_count),
             "symbols": int(symbols_count),
             "edges": int(edges_count),
+            "resolved_edges": int(edges_count),
             "test_symbols": int(tests_count),
         }
 
