@@ -84,6 +84,10 @@ class GraphStorage:
             row["name"]
             for row in self.conn.execute("PRAGMA table_info(files)").fetchall()
         }
+        symbol_cols = {
+            row["name"]
+            for row in self.conn.execute("PRAGMA table_info(symbols)").fetchall()
+        }
         ref_cols = {
             row["name"]
             for row in self.conn.execute("PRAGMA table_info(raw_references)").fetchall()
@@ -97,6 +101,14 @@ class GraphStorage:
                 self.conn.execute(
                     "ALTER TABLE files ADD COLUMN mtime REAL NOT NULL DEFAULT 0.0"
                 )
+            if "is_test" not in symbol_cols:
+                self.conn.execute(
+                    "ALTER TABLE symbols ADD COLUMN is_test INTEGER NOT NULL DEFAULT 0"
+                )
+            if "signature" not in symbol_cols:
+                self.conn.execute(
+                    "ALTER TABLE symbols ADD COLUMN signature TEXT DEFAULT ''"
+                )
             if "module_hint" not in ref_cols:
                 self.conn.execute(
                     "ALTER TABLE raw_references ADD COLUMN module_hint TEXT"
@@ -107,7 +119,7 @@ class GraphStorage:
                 )
             if "line_no" not in edge_cols:
                 self.conn.execute("ALTER TABLE edges ADD COLUMN line_no INTEGER")
-
+                
     def get_file_hash(self, rel_path: str) -> str | None:
         row = self.conn.execute(
             "SELECT sha256 FROM files WHERE rel_path = ?", (rel_path,)
@@ -137,6 +149,22 @@ class GraphStorage:
     def delete_file(self, rel_path: str) -> None:
         with self.conn:
             self.conn.execute("DELETE FROM files WHERE rel_path = ?", (rel_path,))
+
+    def prune_deleted_files(self, active_rel_paths: set[str] | list[str]) -> int:
+        active = set(active_rel_paths)
+        existing = {
+            str(r["rel_path"])
+            for r in self.conn.execute("SELECT rel_path FROM files").fetchall()
+        }
+        stale = existing - active
+        if not stale:
+            return 0
+        with self.conn:
+            self.conn.executemany(
+                "DELETE FROM files WHERE rel_path = ?",
+                [(rel_path,) for rel_path in stale],
+            )
+        return len(stale)
 
     def upsert_file_parse(
         self,
