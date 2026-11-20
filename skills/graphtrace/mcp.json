@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "graphtrace": {
+      "command": "graphtrace",
+      "args": ["mcp", "."]
+    }
+  }
+}
